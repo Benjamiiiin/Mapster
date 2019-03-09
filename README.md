@@ -3,6 +3,8 @@ Map manager for Dungeons and Dragons, utilising a horizontal TV screen as a tabl
 
 ## Dependencies
 
-<sudo apt install python3-pillow>
-<sudo apt install python3-pyqt5>
-<sudo apt install python3-numpy>
+```sudo apt install python3-pillow```
+
+```sudo apt install python3-pyqt5```
+
+```sudo apt install python3-numpy```
