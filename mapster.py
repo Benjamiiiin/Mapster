@@ -15,6 +15,10 @@ from display import Ui_DisplayDialog
 def modAlpha(pixel):
     return int(0.70*pixel)
 
+def trace(frame, event, arg):
+    print("%s, %s:%d" % (event, frame.f_code.co_filename, frame.f_lineno))
+    return trace
+
 # Class representing the display window
 class DispDialog(QDialog, Ui_DisplayDialog):
 
@@ -26,6 +30,7 @@ class DispDialog(QDialog, Ui_DisplayDialog):
         self.scroll_display.viewport().installEventFilter(self)
         self.show()
         self.setStyleSheet("background-color: #000000;")
+        self.setFullScreen()
         
     def displayMap(self, scale_factor, pixmap):
         self.display_label = QLabel()
@@ -63,8 +68,14 @@ class DispDialog(QDialog, Ui_DisplayDialog):
             if self.isFullScreen():
                 self.showNormal()
             else:
-                self.showFullScreen()
+                self.setFullScreen()
         event.accept()
+
+    def setFullScreen(self):
+        desktop = QApplication.desktop()
+        screen2 = desktop.screenGeometry(1) # Get 2nd monitor's geometry
+        self.move(screen2.left(), screen2.top()) # Move window to 2nd monitor
+        self.showFullScreen()
 
 
 # Class representing the control window
@@ -88,7 +99,7 @@ class ControlDialog(QMainWindow, Ui_ControlWindow):
         self.previous_scroll = [] # Previous scroll location prior to elastic view
         self.clicks_5ft = []    # Points clicked on for 5ft range setting
         self.clicks_polygon = []
-        self.pixels_5ft = 90     # Number of pixels for correct 5ft scale
+        self.pixels_5ft = 175     # Number of pixels for correct 5ft scale
         self.control_label = QLabel()
 
     def initControlUI(self):
@@ -115,7 +126,7 @@ class ControlDialog(QMainWindow, Ui_ControlWindow):
         self.control_label.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
 
     def initMapConfig(self):
-        self.map_names = os.listdir('/home/benjamin/git_ws/mapster/maps')
+        self.map_names = os.listdir(os.getcwd() + "/maps")
         self.list_model = QStandardItemModel()
 
         for map_name in self.map_names:
@@ -260,7 +271,7 @@ class ControlDialog(QMainWindow, Ui_ControlWindow):
             if self.display_window.isFullScreen():
                 self.display_window.showNormal()
             else:
-                self.display_window.showFullScreen()
+                self.display_window.setFullScreen()
         elif event.key() == QtCore.Qt.Key_Space:
             self.but_lock_view.setChecked(not self.but_lock_view.isChecked())
         elif event.key() == QtCore.Qt.Key_V:
@@ -311,7 +322,7 @@ class ControlDialog(QMainWindow, Ui_ControlWindow):
             alpha = 255
 
         # Get fogmap
-        filename = ("/home/benjamin/git_ws/mapster/config/fogmaps/" 
+        filename = (os.getcwd() + "/config/fogmaps/" 
             + self.getFilenameNoExt() + ".png")
         im_fog = Image.open(filename)
 
@@ -460,20 +471,27 @@ class ControlDialog(QMainWindow, Ui_ControlWindow):
         mapname = 'maps/' + self.map_names[self.current_index]
         fogname = 'config/fogmaps/' + fname_no_ext + ".png"
         im_orig = Image.open(mapname)
-        im_fog = Image.open(fogname).filter(ImageFilter.GaussianBlur(self.blur_radius))
 
-        if transparent:
-            im_fog = Image.eval(im_fog, modAlpha)
+        try:
+            im_fog = Image.open(fogname).filter(ImageFilter.GaussianBlur(self.blur_radius))
 
-        im_base = Image.new("RGBA", im_orig.size)
-        im_base.paste(im_orig)
-        im_comp = Image.alpha_composite(im_base, im_fog)
+            if transparent:
+                im_fog = Image.eval(im_fog, modAlpha)
 
-        if self.grid_shown:
-            im_comp = Image.alpha_composite(im_comp, self.getGrid(im_orig.size))
+            im_base = Image.new("RGBA", im_orig.size)
+            im_base.paste(im_orig)
+            im_comp = Image.alpha_composite(im_base, im_fog)
 
-        qim = ImageQt(im_comp)
-        return QtGui.QPixmap.fromImage(qim)
+            if self.grid_shown:
+                im_comp = Image.alpha_composite(im_comp, self.getGrid(im_orig.size))
+
+            return QtGui.QPixmap.fromImage(ImageQt(im_comp))
+
+        except FileNotFoundError:
+            print("file not found")
+
+            self.resetFog(255) # Create fogmap
+            return QtGui.QPixmap.fromImage(ImageQt(im_orig))
 
     def setClearFog(self):
         self.resetFog(0)   
@@ -506,7 +524,7 @@ class ControlDialog(QMainWindow, Ui_ControlWindow):
         dr = ImageDraw.Draw(im)
         dr.rectangle([(0, 0), (im_w, im_h)], fill=(0, 0, 0, alpha))
         del dr
-        im.save("/home/benjamin/git_ws/mapster/config/fogmaps/" 
+        im.save(os.getcwd() + "/config/fogmaps/" 
             + self.getFilenameNoExt() + ".png")
 
         self.saveScrollValues()
